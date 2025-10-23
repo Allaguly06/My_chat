@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Создать группу - ChatTM{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="card-title mb-0">
+                    <i class="bi bi-people"></i> Создать новую группу
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="group_name" class="form-label">Название группы</label>
+                        <input type="text" class="form-control" id="group_name" name="group_name" 
+                               placeholder="Введите название группы" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Выберите участников</label>
+                        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            {% for user in other_users %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="members" 
+                                       value="{{ user }}" id="user-{{ loop.index }}">
+                                <label class="form-check-label" for="user-{{ loop.index }}">
+                                    {{ user }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-plus-circle"></i> Создать группу
+                        </button>
+                        <a href="{{ url_for('chat') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Назад к чату
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
