@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - ChatTM{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h1>🐍 ChatTM</h1>
+            <p>Войдите чтобы начать общение</p>
+        </div>
+
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" class="login-form">
+            <div class="form-group">
+                <label for="username">Ваше имя:</label>
+                <input type="text" id="username" name="username" 
+                       placeholder="Введите имя пользователя" 
+                       required minlength="2" maxlength="20"
+                       autocomplete="off">
+            </div>
+
+            <button type="submit" class="login-btn"> Войти в чат</button>
+        </form>
+
+        <div class="login-info">
+            <h3>Особенности:</h3>
+            <ul>
+                <li> Многокомнатный чат</li>
+                <li> Список онлайн-пользователей</li>
+                <li> Статистика и профили</li>
+                <li> Настройки темы</li>
+                <li> Мобильная версия</li>
+                <li> Сохранение истории</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

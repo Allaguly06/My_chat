@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru" class="theme-{{ session.get('theme', 'dark') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ChatTM{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="main-nav">
+        <div class="nav-brand">
+            <span class="logo">🐍</span>
+            ChatTM
+        </div>
+        
+        <div class="nav-links">
+            {% if session.username %}
+                <a href="{{ url_for('index') }}" class="nav-link"> Чат</a>
+                <a href="{{ url_for('stats') }}" class="nav-link"> Статистика</a>
+                <a href="{{ url_for('profile') }}" class="nav-link"> {{ session.username }}</a>
+                <a href="{{ url_for('settings') }}" class="nav-link"> Настройки</a>
+                <a href="{{ url_for('mobile') }}" class="nav-link"> Mobile</a>
+                <a href="{{ url_for('logout') }}" class="nav-link logout"> Выйти</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-link"> Войти</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="main-footer">
+        <div class="footer-content">
+            <span>ChatTM &copy; 2024</span>
+            <span>|</span>
+            <span>Онлайн: {{ active_users|length if active_users else 0 }}</span>
+            <span>|</span>
+            <span>Комнат: {{ chat_rooms|length if chat_rooms else 0 }}</span>
+            {% if session.username %}
+            <span>|</span>
+            <span>Вы: {{ session.username }}</span>
+            {% endif %}
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

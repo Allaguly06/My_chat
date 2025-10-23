@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - ChatTM{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-card">
+        <div class="profile-header">
+            <h1> Профиль пользователя</h1>
+            <div class="user-avatar">{{ stats.username[0]|upper }}</div>
+        </div>
+
+        <div class="profile-info">
+            <div class="info-section">
+                <h3> Основная информация</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Имя пользователя:</span>
+                        <span class="info-value">{{ stats.username }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">В системе с:</span>
+                        <span class="info-value">{{ stats.join_time }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Всего сообщений:</span>
+                        <span class="info-value">{{ stats.total_messages }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Активных комнат:</span>
+                        <span class="info-value">{{ stats.active_rooms }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3> Комнаты</h3>
+                <div class="rooms-grid">
+                    {% for room in stats.rooms_joined %}
+                    <div class="room-badge">{{ room }}</div>
+                    {% else %}
+                    <p class="no-data">Вы еще не присоединились к комнатам</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3> Системная информация</h3>
+                <div class="info-item">
+                    <span class="info-label">User Agent:</span>
+                    <span class="info-value small">{{ stats.user_agent }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-actions">
+            <a href="{{ url_for('stats') }}" class="btn-primary"> Общая статистика</a>
+            <a href="{{ url_for('settings') }}" class="btn-secondary"> Настройки</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
