@@ -13,7 +13,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.tmp
-
+# БД
+*.db
 # История чата (не коммитить)
 chat_history.json
 *.log
