@@ -1,383 +1,347 @@
+#!/usr/bin/env python3
 import os
 import json
-import platform
+import uuid
+import socket
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify
+from flask import Flask, render_template, request, session, redirect, url_for, flash
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
-# Инициализация приложения
+from database import db  # Импортируем нашу базу данных
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'kali_linux_chat_secret_2024'
+app.config['SECRET_KEY'] = 'super-secret-chat-key-2024'
 app.config['DEBUG'] = True
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Глобальные переменные
-active_users = {}
-user_profiles = {}
-chat_rooms = {
-    'general': {'users': [], 'messages': [], 'description': 'Основная комната'},
-    'python': {'users': [], 'messages': [], 'description': 'Обсуждение Python'},
-    'help': {'users': [], 'messages': [], 'description': 'Помощь и поддержка'},
-    'random': {'users': [], 'messages': [], 'description': 'Свободное общение'},
-    'hacking': {'users': [], 'messages': [], 'description': 'Этичный хакинг'}
-}
+# Глобальные переменные для онлайн статуса
+active_users = {}  # {socket_id: username}
+user_sessions = {}  # {username: socket_id}
 
-#  ROUTES 
+# ==================== ROUTES ====================
 
 @app.route('/')
 def index():
-    """Главная страница чата"""
     if 'username' not in session:
         return redirect('/login')
-    
-    user_agent = request.headers.get('User-Agent', '').lower()
-    is_mobile = 'mobile' in user_agent or 'android' in user_agent
-    
-    return render_template('index.html',
-                         username=session['username'],
-                         rooms=chat_rooms,
-                         active_users=active_users,
-                         is_mobile=is_mobile,
-                         total_users=len(active_users))
+    return redirect('/chat')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Страница входа"""
+    if 'username' in session:
+        return redirect('/chat')
+    
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
+        username = request.form['username'].strip()
+        password = request.form['password']
         
-        if not username or len(username) < 2:
-            return render_template('login.html', error='Имя должно быть от 2 символов')
+        if not username or not password:
+            flash('Заполните все поля', 'error')
+            return render_template('login.html')
         
-        if username in active_users.values():
-            return render_template('login.html', error='Это имя уже используется')
-        
-        session['username'] = username
-        session['login_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        session['user_agent'] = request.headers.get('User-Agent', 'Unknown')
-        
-        # Создаем профиль пользователя
-        user_profiles[username] = {
-            'join_time': session['login_time'],
-            'message_count': 0,
-            'rooms_joined': []
-        }
-        
-        return redirect('/')
+        if db.verify_user(username, password):
+            session['username'] = username
+            session['user_id'] = str(uuid.uuid4())
+            flash('Успешный вход!', 'success')
+            return redirect('/chat')
+        else:
+            flash('Неверное имя пользователя или пароль', 'error')
     
     return render_template('login.html')
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if 'username' in session:
+        return redirect('/chat')
+    
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        if not username or not password:
+            flash('Заполните все поля', 'error')
+            return render_template('register.html')
+        
+        if len(username) < 3:
+            flash('Имя пользователя должно быть не менее 3 символов', 'error')
+            return render_template('register.html')
+        
+        if len(password) < 6:
+            flash('Пароль должен быть не менее 6 символов', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Пароли не совпадают', 'error')
+            return render_template('register.html')
+        
+        if db.add_user(username, password):
+            flash('Регистрация успешна! Теперь войдите в систему.', 'success')
+            return redirect('/login')
+        else:
+            flash('Имя пользователя уже занято', 'error')
+    
+    return render_template('register.html')
+
+@app.route('/chat')
+def chat():
+    if 'username' not in session:
+        return redirect('/login')
+    
+    username = session['username']
+    
+    # Получаем данные из базы
+    all_users_data = db.get_all_users()
+    all_users = [user['username'] for user in all_users_data]
+    online_users = list(active_users.values())
+    
+    # Получаем приватные чаты и группы
+    user_private_chats = db.get_user_private_chats(username)
+    user_groups = db.get_user_groups(username)
+    
+    return render_template('chat.html',
+                         username=username,
+                         all_users=all_users,
+                         online_users=online_users,
+                         private_chats=user_private_chats,
+                         groups=user_groups,
+                         active_users_count=len(active_users))
+
+@app.route('/create_group', methods=['GET', 'POST'])
+def create_group():
+    if 'username' not in session:
+        return redirect('/login')
+    
+    if request.method == 'POST':
+        group_name = request.form['group_name'].strip()
+        members = request.form.getlist('members')
+        
+        if not group_name:
+            flash('Введите название группы', 'error')
+            return redirect('/create_group')
+        
+        group_id = db.create_group(group_name, session['username'], members)
+        if group_id:
+            flash(f'Группа "{group_name}" создана!', 'success')
+            return redirect('/chat')
+        else:
+            flash('Ошибка при создании группы', 'error')
+    
+    # Получаем всех пользователей кроме текущего
+    all_users = [user['username'] for user in db.get_all_users()]
+    other_users = [user for user in all_users if user != session['username']]
+    
+    return render_template('create_group.html', other_users=other_users)
+
+@app.route('/profile')
+def profile():
+    if 'username' not in session:
+        return redirect('/login')
+    
+    username = session['username']
+    user_data = db.get_user(username)
+    
+    if not user_data:
+        flash('Пользователь не найден', 'error')
+        return redirect('/chat')
+    
+    user_private_chats = db.get_user_private_chats(username)
+    user_groups = db.get_user_groups(username)
+    
+    profile_info = {
+        'username': username,
+        'joined_date': user_data.get('joined_date', 'Неизвестно'),
+        'last_seen': user_data.get('last_seen', 'Неизвестно'),
+        'private_chats_count': len(user_private_chats),
+        'groups_count': len(user_groups),
+        'contacts_count': len(set([chat['other_user'] for chat in user_private_chats]))
+    }
+    
+    return render_template('profile.html', profile=profile_info)
+
 @app.route('/logout')
 def logout():
-    """Выход из системы"""
     username = session.pop('username', None)
-    
-    if username:
+    if username and username in user_sessions:
         # Удаляем из активных пользователей
         for sid, user in list(active_users.items()):
             if user == username:
                 del active_users[sid]
                 break
-        
-        # Сохраняем историю
-        save_chat_history()
+        del user_sessions[username]
     
+    flash('Вы вышли из системы', 'info')
     return redirect('/login')
 
-@app.route('/profile')
-def profile():
-    """Страница профиля"""
-    if 'username' not in session:
-        return redirect('/login')
-    
-    username = session['username']
-    profile_data = user_profiles.get(username, {})
-    
-    # Считаем статистику
-    user_messages = 0
-    user_rooms = []
-    
-    for room_name, room_data in chat_rooms.items():
-        room_msg_count = sum(1 for msg in room_data['messages'] if msg.get('username') == username)
-        if room_msg_count > 0:
-            user_messages += room_msg_count
-            user_rooms.append(room_name)
-    
-    stats = {
-        'username': username,
-        'join_time': profile_data.get('join_time', 'Неизвестно'),
-        'total_messages': user_messages,
-        'rooms_joined': user_rooms,
-        'active_rooms': len([r for r in user_rooms if username in chat_rooms[r]['users']]),
-        'user_agent': session.get('user_agent', 'Unknown')
-    }
-    
-    return render_template('profile.html', stats=stats)
-
-@app.route('/stats')
-def stats():
-    """Статистика чата"""
-    if 'username' not in session:
-        return redirect('/login')
-    
-    # Статистика по комнатам
-    room_stats = []
-    for room_name, room_data in chat_rooms.items():
-        room_stats.append({
-            'name': room_name,
-            'description': room_data['description'],
-            'online_users': len(room_data['users']),
-            'total_messages': len(room_data['messages']),
-            'last_activity': room_data['messages'][-1]['timestamp'] if room_data['messages'] else 'Нет активности'
-        })
-    
-    # Общая статистика
-    total_messages = sum(len(room['messages']) for room in chat_rooms.values())
-    most_active_room = max(chat_rooms.items(), key=lambda x: len(x[1]['messages']))[0]
-    
-    stats_data = {
-        'total_online': len(active_users),
-        'total_rooms': len(chat_rooms),
-        'total_messages': total_messages,
-        'most_active_room': most_active_room,
-        'server_os': platform.system(),
-        'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'room_stats': room_stats,
-        'active_users': list(active_users.values())
-    }
-    
-    return render_template('stats.html', stats=stats_data)
-
-@app.route('/settings', methods=['GET', 'POST'])
-def settings():
-    """Настройки пользователя"""
-    if 'username' not in session:
-        return redirect('/login')
-    
-    if request.method == 'POST':
-        # Сохраняем настройки
-        session['theme'] = request.form.get('theme', 'dark')
-        session['notifications'] = 'notifications' in request.form
-        session['sound_effects'] = 'sound_effects' in request.form
-        session['auto_join'] = request.form.get('auto_join', 'general')
-        
-        return redirect('/settings?success=1')
-    
-    return render_template('settings.html',
-                         current_theme=session.get('theme', 'dark'),
-                         notifications=session.get('notifications', True),
-                         sound_effects=session.get('sound_effects', True),
-                         auto_join=session.get('auto_join', 'general'),
-                         rooms=chat_rooms)
-
-@app.route('/mobile')
-def mobile_chat():
-    """Мобильная версия"""
-    if 'username' not in session:
-        return redirect('/login')
-    
-    return render_template('mobile.html',
-                         username=session['username'],
-                         rooms=chat_rooms,
-                         active_users_count=len(active_users))
-
-#  SOCKET IO HANDLERS 
+# ==================== SOCKET IO HANDLERS ====================
 
 @socketio.on('connect')
 def handle_connect():
-    """Обработчик подключения"""
     if 'username' in session:
         username = session['username']
         active_users[request.sid] = username
+        user_sessions[username] = request.sid
         
-        # Уведомляем всех о новом пользователе
-        emit('user_list_update', {
-            'users': list(active_users.values()),
-            'total': len(active_users)
-        }, broadcast=True)
+        # Обновляем время последнего посещения
+        db.update_last_seen(username)
         
-        emit('system_message', {
-            'text': f' {username} подключился',
-            'type': 'connect'
-        }, broadcast=True)
+        # Уведомляем всех о новом пользователе онлайн
+        emit('user_online', {'username': username}, broadcast=True)
+        emit('online_users_update', {'users': list(active_users.values())}, broadcast=True)
+        print(f"✅ {username} подключился. Онлайн: {len(active_users)}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    """Обработчик отключения"""
     username = active_users.pop(request.sid, None)
+    if username and username in user_sessions:
+        del user_sessions[username]
     
     if username:
-        # Удаляем из всех комнат
-        for room_data in chat_rooms.values():
-            if username in room_data['users']:
-                room_data['users'].remove(username)
-        
-        # Уведомляем всех
-        emit('user_list_update', {
-            'users': list(active_users.values()),
-            'total': len(active_users)
-        }, broadcast=True)
-        
-        emit('system_message', {
-            'text': f' {username} отключился',
-            'type': 'disconnect'
-        }, broadcast=True)
-        
-        save_chat_history()
+        emit('user_offline', {'username': username}, broadcast=True)
+        emit('online_users_update', {'users': list(active_users.values())}, broadcast=True)
+        print(f"❌ {username} отключился. Онлайн: {len(active_users)}")
 
-@socketio.on('join_room')
-def handle_join_room(data):
-    """Вход в комнату"""
-    room = data['room']
+@socketio.on('start_private_chat')
+def handle_start_private_chat(data):
+    username = session['username']
+    other_user = data['other_user']
+    
+    # Создаем или находим приватный чат
+    chat_id = db.find_or_create_private_chat(username, other_user)
+    
+    # Присоединяем к комнате приватного чата
+    join_room(str(chat_id))
+    
+    # Отправляем историю чата
+    chat_history = db.get_private_chat_history(chat_id)
+    emit('private_chat_history', {
+        'chat_id': chat_id,
+        'other_user': other_user,
+        'messages': chat_history
+    })
+    print(f"💬 {username} начал чат с {other_user}")
+
+@socketio.on('join_group')
+def handle_join_group(data):
+    group_id = data['group_id']
     username = session['username']
     
-    if room in chat_rooms:
-        join_room(room)
-        
-        # Добавляем в комнату если еще нет
-        if username not in chat_rooms[room]['users']:
-            chat_rooms[room]['users'].append(username)
-            user_profiles[username]['rooms_joined'] = list(set(user_profiles[username].get('rooms_joined', []) + [room]))
-        
-        # Отправляем историю комнаты
-        emit('room_history', {
-            'room': room,
-            'messages': chat_rooms[room]['messages'][-50:]  # Последние 50 сообщений
-        })
-        
-        # Уведомляем комнату
-        emit('system_message', {
-            'text': f'🎉 {username} присоединился к комнате',
-            'type': 'room_join',
-            'room': room
-        }, room=room)
-        
-        # Обновляем список пользователей комнаты
-        emit('room_users_update', {
-            'room': room,
-            'users': chat_rooms[room]['users']
-        }, room=room)
-
-@socketio.on('leave_room')
-def handle_leave_room(data):
-    """Выход из комнаты"""
-    room = data['room']
-    username = session['username']
+    # Проверяем что пользователь в группе
+    user_groups = db.get_user_groups(username)
+    group_ids = [str(g['group_id']) for g in user_groups]
     
-    if room in chat_rooms and username in chat_rooms[room]['users']:
-        leave_room(room)
-        chat_rooms[room]['users'].remove(username)
+    if str(group_id) in group_ids:
+        join_room(str(group_id))
         
-        emit('system_message', {
-            'text': f' {username} покинул комнату',
-            'type': 'room_leave',
-            'room': room
-        }, room=room)
+        # Отправляем историю группы
+        group_history = db.get_group_history(group_id)
+        group_info = next((g for g in user_groups if str(g['group_id']) == str(group_id)), None)
         
-        emit('room_users_update', {
-            'room': room,
-            'users': chat_rooms[room]['users']
-        }, room=room)
+        if group_info:
+            emit('group_chat_history', {
+                'group_id': group_id,
+                'group_name': group_info['name'],
+                'messages': group_history
+            })
+            print(f"👥 {username} присоединился к группе {group_info['name']}")
 
-@socketio.on('chat_message')
-def handle_chat_message(data):
-    """Обработка сообщений"""
-    room = data['room']
+@socketio.on('private_message')
+def handle_private_message(data):
     username = session['username']
+    chat_id = data['chat_id']
     message_text = data['text'].strip()
     
-    if message_text and room in chat_rooms:
+    if message_text:
+        # Сохраняем сообщение в базу
+        db.add_private_message(chat_id, username, message_text)
+        
         message_data = {
             'username': username,
             'text': message_text,
-            'timestamp': datetime.now().strftime('%H:%M:%S'),
-            'room': room,
-            'id': len(chat_rooms[room]['messages']) + 1
+            'timestamp': datetime.now().strftime('%H:%M:%S')
         }
         
-        # Сохраняем сообщение
-        chat_rooms[room]['messages'].append(message_data)
+        # Отправляем сообщение в комнату приватного чата
+        emit('new_private_message', {
+            'chat_id': chat_id,
+            'message': message_data
+        }, room=str(chat_id))
         
-        # Обновляем счетчик сообщений пользователя
-        user_profiles[username]['message_count'] = user_profiles[username].get('message_count', 0) + 1
-        
-        # Отправляем всем в комнате
-        emit('new_message', message_data, room=room)
-        
-        # Автосохранение каждые 5 сообщений
-        if len(chat_rooms[room]['messages']) % 5 == 0:
-            save_chat_history()
+        print(f"📨 {username} -> Чат {chat_id}: {message_text}")
 
-@socketio.on('typing')
-def handle_typing(data):
-    """Индикатор набора текста"""
-    emit('user_typing', {
-        'username': session['username'],
-        'is_typing': data['is_typing'],
-        'room': data['room']
-    }, room=data['room'], include_self=False)
-
-#  UTILITIES 
-
-def get_chat_history_path():
-    """Путь к файлу истории для Kali Linux"""
-    base_dir = Path.home() / ".python_chat_kali"
-    base_dir.mkdir(exist_ok=True)
-    return base_dir / "chat_history.json"
-
-def save_chat_history():
-    """Сохранение истории чата"""
-    history_file = get_chat_history_path()
-    try:
-        with open(history_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                'chat_rooms': chat_rooms,
-                'user_profiles': user_profiles,
-                'last_save': datetime.now().isoformat()
-            }, f, ensure_ascii=False, indent=2)
-        print(f" История сохранена: {history_file}")
-    except Exception as e:
-        print(f" Ошибка сохранения: {e}")
-
-def load_chat_history():
-    """Загрузка истории чата"""
-    history_file = get_chat_history_path()
-    global chat_rooms, user_profiles
+@socketio.on('group_message')
+def handle_group_message(data):
+    username = session['username']
+    group_id = data['group_id']
+    message_text = data['text'].strip()
     
-    if history_file.exists():
-        try:
-            with open(history_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                chat_rooms.update(data.get('chat_rooms', {}))
-                user_profiles.update(data.get('user_profiles', {}))
-            print(f" История загружена: {len(chat_rooms)} комнат, {len(user_profiles)} пользователей")
-        except Exception as e:
-            print(f" Ошибка загрузки истории: {e}")
+    if message_text:
+        # Сохраняем сообщение в базу
+        db.add_group_message(group_id, username, message_text)
+        
+        message_data = {
+            'username': username,
+            'text': message_text,
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }
+        
+        # Отправляем сообщение в комнату группы
+        emit('new_group_message', {
+            'group_id': group_id,
+            'message': message_data
+        }, room=str(group_id))
+        
+        print(f"👥 {username} -> Группа {group_id}: {message_text}")
 
-#  MAIN 
+@socketio.on('typing_start')
+def handle_typing_start(data):
+    username = session['username']
+    chat_type = data['chat_type']
+    chat_id = data['chat_id']
+    
+    emit('user_typing', {
+        'username': username,
+        'chat_type': chat_type,
+        'chat_id': chat_id
+    }, room=str(chat_id), include_self=False)
+
+@socketio.on('typing_stop')
+def handle_typing_stop(data):
+    chat_id = data['chat_id']
+    emit('user_stop_typing', {'chat_id': chat_id}, room=str(chat_id))
+
+# ==================== MAIN ====================
 
 if __name__ == '__main__':
-    print(" Запуск Python Chat для Kali Linux")
+    def get_local_ip():
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except:
+            return "127.0.0.1"
+    
+    local_ip = get_local_ip()
+    
+    print("🚀 ChatTM Server с БАЗОЙ ДАННЫХ запущен!")
+    print("=" * 50)
+    print("📍 Локальный доступ:")
+    print("   http://localhost:5000")
+    print("   http://127.0.0.1:5000")
+    print("")
+    print("📍 Сетевой доступ:")
+    print(f"   http://{local_ip}:5000")
+    print("")
+    print("📱 Для подключения с телефона:")
+    print(f"   Открой браузер и введи: http://{local_ip}:5000")
+    print("")
+    print("💾 База данных: chat.db")
+    print("⏹️  Для остановки: Ctrl+C")
     print("=" * 50)
     
-    # Загружаем историю
-    load_chat_history()
-    
-    # Запускаем сервер
-    print(" Сервер запускается на http://0.0.0.0:5000")
-    print(" Доступ с других устройств по IP вашей Kali Linux")
-    print("  Для остановки: Ctrl+C")
-    print("=" * 50)
-    
-    try:
-        socketio.run(app,
-                    host='0.0.0.0',
-                    port=5000,
-                    debug=True,
-                    allow_unsafe_werkzeug=True)
-    except KeyboardInterrupt:
-        print("\n Сохраняем историю...")
-        save_chat_history()
-        print(" Сервер остановлен")
+    # Запускаем на всех интерфейсах
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
