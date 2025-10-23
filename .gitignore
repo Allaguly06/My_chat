@@ -1,0 +1,23 @@
+# Виртуальное окружение
+chat_env/
+venv/
+env/
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Файлы ОС
+.DS_Store
+Thumbs.db
+*.tmp
+
+# История чата (не коммитить)
+chat_history.json
+*.log
+
+# IDE
+.vscode/
+.idea/
