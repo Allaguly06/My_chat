@@ -3,59 +3,59 @@
 {% block title %}Профиль - ChatTM{% endblock %}
 
 {% block content %}
-<div class="profile-container">
-    <div class="profile-card">
-        <div class="profile-header">
-            <h1> Профиль пользователя</h1>
-            <div class="user-avatar">{{ stats.username[0]|upper }}</div>
-        </div>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-info text-white">
+                <h4 class="card-title mb-0">
+                    <i class="bi bi-person-circle"></i> Профиль пользователя
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                         style="width: 80px; height: 80px;">
+                        <i class="bi bi-person-fill text-white" style="font-size: 2rem;"></i>
+                    </div>
+                    <h3 class="mt-3">{{ profile.username }}</h3>
+                </div>
 
-        <div class="profile-info">
-            <div class="info-section">
-                <h3> Основная информация</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">Имя пользователя:</span>
-                        <span class="info-value">{{ stats.username }}</span>
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <div class="border rounded p-2">
+                            <h5 class="text-primary">{{ profile.private_chats_count }}</h5>
+                            <small>Приватных чатов</small>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">В системе с:</span>
-                        <span class="info-value">{{ stats.join_time }}</span>
+                    <div class="col-4">
+                        <div class="border rounded p-2">
+                            <h5 class="text-success">{{ profile.groups_count }}</h5>
+                            <small>Групп</small>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">Всего сообщений:</span>
-                        <span class="info-value">{{ stats.total_messages }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Активных комнат:</span>
-                        <span class="info-value">{{ stats.active_rooms }}</span>
+                    <div class="col-4">
+                        <div class="border rounded p-2">
+                            <h5 class="text-warning">{{ profile.contacts_count }}</h5>
+                            <small>Контактов</small>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="info-section">
-                <h3> Комнаты</h3>
-                <div class="rooms-grid">
-                    {% for room in stats.rooms_joined %}
-                    <div class="room-badge">{{ room }}</div>
-                    {% else %}
-                    <p class="no-data">Вы еще не присоединились к комнатам</p>
-                    {% endfor %}
+                <div class="list-group">
+                    <div class="list-group-item">
+                        <strong>Дата регистрации:</strong> {{ profile.joined_date }}
+                    </div>
+                    <div class="list-group-item">
+                        <strong>Последний вход:</strong> {{ profile.last_seen }}
+                    </div>
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a href="{{ url_for('chat') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Вернуться в чат
+                    </a>
                 </div>
             </div>
-
-            <div class="info-section">
-                <h3> Системная информация</h3>
-                <div class="info-item">
-                    <span class="info-label">User Agent:</span>
-                    <span class="info-value small">{{ stats.user_agent }}</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="profile-actions">
-            <a href="{{ url_for('stats') }}" class="btn-primary"> Общая статистика</a>
-            <a href="{{ url_for('settings') }}" class="btn-secondary"> Настройки</a>
         </div>
     </div>
 </div>

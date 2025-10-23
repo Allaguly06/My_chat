@@ -1,62 +1,111 @@
 <!DOCTYPE html>
-<html lang="ru" class="theme-{{ session.get('theme', 'dark') }}">
+<html lang="ru" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ChatTM{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <nav class="main-nav">
-        <div class="nav-brand">
-            <span class="logo">🐍</span>
-            ChatTM
-        </div>
-        
-        <div class="nav-links">
-            {% if session.username %}
-                <a href="{{ url_for('index') }}" class="nav-link"> Чат</a>
-                <a href="{{ url_for('stats') }}" class="nav-link"> Статистика</a>
-                <a href="{{ url_for('profile') }}" class="nav-link"> {{ session.username }}</a>
-                <a href="{{ url_for('settings') }}" class="nav-link"> Настройки</a>
-                <a href="{{ url_for('mobile') }}" class="nav-link"> Mobile</a>
-                <a href="{{ url_for('logout') }}" class="nav-link logout"> Выйти</a>
-            {% else %}
-                <a href="{{ url_for('login') }}" class="nav-link"> Войти</a>
-            {% endif %}
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('chat') }}">
+                <i class="bi bi-chat-dots"></i> ChatTM
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if session.username %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('chat') }}">
+                            <i class="bi bi-chat-left-text"></i> Чат
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('create_group') }}">
+                            <i class="bi bi-people"></i> Создать группу
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if session.username %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.username }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('profile') }}">
+                                <i class="bi bi-person"></i> Профиль
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right"></i> Выйти
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">
+                            <i class="bi bi-box-arrow-in-right"></i> Войти
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('register') }}">
+                            <i class="bi bi-person-plus"></i> Регистрация
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
         </div>
     </nav>
 
-    <main class="main-content">
-        {% with messages = get_flashed_messages() %}
+    <!-- Flash Messages -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-messages">
-                    {% for message in messages %}
-                        <div class="flash-message">{{ message }}</div>
-                    {% endfor %}
-                </div>
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
-        
+    </div>
+
+    <!-- Main Content -->
+    <main class="container my-4">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="main-footer">
-        <div class="footer-content">
-            <span>ChatTM &copy; 2024</span>
-            <span>|</span>
-            <span>Онлайн: {{ active_users|length if active_users else 0 }}</span>
-            <span>|</span>
-            <span>Комнат: {{ chat_rooms|length if chat_rooms else 0 }}</span>
-            {% if session.username %}
-            <span>|</span>
-            <span>Вы: {{ session.username }}</span>
-            {% endif %}
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-3 mt-5">
+        <div class="container text-center">
+            <small>ChatTM &copy; 2025</small>
         </div>
     </footer>
 
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SocketIO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>
